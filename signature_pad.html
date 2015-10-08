@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
+<script LANGUAGE="JavaScript">
+     onICHostReady = function(version) {
+         if ( version != 1.0 )
+            alert('Invalid API version');
+    }
+</script>
     <title>The title</title>
 </head>
 
