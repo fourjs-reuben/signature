@@ -1,50 +1,63 @@
-IMPORT util
+IMPORT os
+IMPORT FGL wc_signature
 
 MAIN
 DEFINE signature STRING 
-DEFINE mode STRING
-DEFINE result STRING
 
-    OPEN WINDOW signature WITH FORM "signature"
+    OPTIONS FIELD ORDER FORM
+    OPTIONS INPUT WRAP
+    CALL STARTLOG("signature.log")
 
-    LET mode = "sign"
-    WHILE mode != "exit"
-        CASE mode
-            WHEN "sign"
-                INPUT BY NAME signature WITHOUT DEFAULTS ATTRIBUTES(UNBUFFERED)
-                    ON ACTION clear
-                        -- clears the web component
-                        CALL ui.Interface.frontCall("webcomponent","call",["formonly.signature","signaturePadClear"],[result])
-                    ON ACTION save
-                        -- saves the web component to file signature.png
-                        CALL ui.Interface.frontCall("webcomponent","call",["formonly.signature","signaturePadSave"],[result])
-                        CALL util.Strings.base64Decode(result.subString(23,result.getLength()),"signature.png")
-                    ON ACTION empty
-                        -- Test if web component is empty
-                        CALL ui.Interface.frontCall("webcomponent","call",["formonly.signature","signaturePadEmpty"],[result])
-                        DISPLAY result
-                    ON ACTION view
-                        LET mode = "view"
-                        EXIT INPUT
-                    ON ACTION close
-                        LET mode = "exit"
-                        EXIT INPUT
-                END INPUT
-                
-            WHEN "view"
-                -- will dispay last saved web component
-                DISPLAY "signature.png" TO img
-                MENU ""
-                    ON ACTION sign
-                        LET mode = "sign"
-                        EXIT MENU
-                    ON ACTION close
-                        LET mode = "exit"
-                        EXIT MENU
-                END MENU
-        END CASE
-    END WHILE
-    CLOSE WINDOW signature
+    OPEN WINDOW signature WITH FORM "signature" ATTRIBUTES(TEXT="Signature Input")
+    INPUT BY NAME signature WITHOUT DEFAULTS ATTRIBUTES(UNBUFFERED, ACCEPT=FALSE, CANCEL=FALSE)
+    
+        ON ACTION clear ATTRIBUTES(TEXT="Clear Signature")
+            -- clears the web component
+            CALL wc_signature.clear("formonly.signature")
+
+        ON ACTION clear_file ATTRIBUTES(TEXT="Delete Signature File")
+            IF NOT os.Path.delete("signature.png") THEN
+                ERROR "Error deleting signature file"
+            END IF
+
+        ON ACTION empty ATTRIBUTES(TEXT="Empty Test")
+            -- Test if web component is empty
+            CALL FGL_WINMESSAGE("Info",SFMT("Web component is empty result=%1",IIF(wc_signature.is_empty("formonly.signature"), "TRUE", "FALSE")),"info")
+            
+        ON ACTION save ATTRIBUTES(TEXT="Save")
+            IF wc_signature.is_empty("formonly.signature") THEN
+                ERROR "No signature has been entered"
+                NEXT FIELD CURRENT
+            END IF
+            IF NOT wc_signature.save("formonly.signature","signature.png") THEN
+                CALL FGL_WINMESSAGE("Error","Unable to save signature to file, view errorlog for details","stop")
+                NEXT FIELD CURRENT
+            END IF
+            
+        ON ACTION view ATTRIBUTES(TEXT="View")
+            CALL view_signature("signature.png")
+            
+        ON ACTION close
+            EXIT INPUT
+    END INPUT
 END MAIN
 
 
+
+FUNCTION view_signature(filename)
+DEFINE filename STRING
+
+    IF NOT os.Path.exists("signature.png") THEN
+        CALL FGL_WINMESSAGE("Error","No signature file has been saved", "stop")
+        RETURN
+    END IF
+    
+    -- displays the last saved signature
+    OPEN WINDOW view WITH FORM "signature_view" ATTRIBUTES(STYLE="dialog", TEXT="View Signature")
+    DISPLAY filename TO img
+    MENU ""
+        ON ACTION close
+            EXIT MENU
+    END MENU
+    CLOSE WINDOW view
+END FUNCTION
